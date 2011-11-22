@@ -35,6 +35,7 @@ Library
 
   Build-depends:
     containers                >= 0.2     && < 0.5,
+    mwc-random,
     parallel
   
   -- Modules not exported by this package.
@@ -56,6 +57,7 @@ Executable texture-synthesis
 
   Build-Depends:
     containers                >= 0.2     && < 0.5,
+    mwc-random,
     parallel
 
 Test-suite tests

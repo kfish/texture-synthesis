@@ -6,5 +6,5 @@ import Graphics.TextureSynthesis
 
 main :: IO ()
 main = do
-    let ts = mkTexture 8
+    ts <- mkTexture 8
     print ts
