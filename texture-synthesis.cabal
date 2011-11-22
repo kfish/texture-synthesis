@@ -34,7 +34,8 @@ Library
     Graphics.TextureSynthesis
 
   Build-depends:
-    containers                >= 0.2     && < 0.5
+    containers                >= 0.2     && < 0.5,
+    parallel
   
   -- Modules not exported by this package.
   -- Other-modules:       

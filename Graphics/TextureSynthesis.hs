@@ -8,6 +8,7 @@ module Graphics.TextureSynthesis (
     , flattenTexture
 ) where
 
+import Control.Parallel
 import Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -77,6 +78,7 @@ quadToMap :: Int -> I2 -> I2 -> QuadTree a -> Map I2 a
 quadToMap _   _          _          QuadNil      = Map.empty
 quadToMap lim (I2 x1 y1) (I2 x2 y2) QuadTree{..}
     | treeLevel >= lim = Map.empty
+    | treeLevel < 3    = nw' `par` ne' `par` sw' `par` (pseq se' result)
     | otherwise        = result
     where
         result = Map.unions [cnews, nw', ne', sw', se']
