@@ -5,6 +5,7 @@
 module Graphics.TextureSynthesis (
       Texture(..)
     , textureEmpty
+    , genTexture
     , mkTexture
     , flattenTexture
 ) where
@@ -37,9 +38,12 @@ data Texture a = Texture {
 textureEmpty :: Texture Float
 textureEmpty = Texture 0 0 0 0 QuadNil
 
-mkTexture :: Int -> IO (Texture Float)
-mkTexture !lim = do
-    quad <- MWC.withSystemRandom (mkQuad lim 0 0 0 0 0 0.5 0.5)
+genTexture :: Int -> IO (Texture Float)
+genTexture = MWC.withSystemRandom . mkTexture
+
+mkTexture :: Int -> MWC.GenIO -> IO (Texture Float)
+mkTexture !lim gen = do
+    quad <- mkQuad lim 0 0 0 0 0 0.5 0.5 gen
     return (Texture 0 0 0 0 quad)
 
 mkQuad :: (Fractional a, MWC.Variate a)
