@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS -Wall #-}
 
@@ -19,16 +20,16 @@ data I2 = I2 !Int !Int
 ----------------------------------------------------------------------
 
 data QuadTree a = QuadTree {
-      treeLevel      :: Int
-    , c              :: a
-    , n, e, w, s     :: a
-    , nw, ne, sw, se :: QuadTree a
+      treeLevel      :: {-# UNPACK #-}!Int
+    , c              :: !a
+    , n, e, w, s     :: !a
+    , nw, ne, sw, se :: !(QuadTree a)
     } | QuadNil
     deriving (Show)
 
 data Texture a = Texture {
-      topLeft, topRight, botLeft, botRight :: a
-    , tree :: QuadTree a
+      topLeft, topRight, botLeft, botRight :: !a
+    , tree :: !(QuadTree a)
     }
     deriving (Show)
 
@@ -36,10 +37,10 @@ textureEmpty :: Texture Float
 textureEmpty = Texture 0 0 0 0 QuadNil
 
 mkTexture :: Int -> Texture Float
-mkTexture lim = Texture 0 0 0 0 (mkQuad lim 0 0 0 0 0)
+mkTexture !lim = Texture 0 0 0 0 (mkQuad lim 0 0 0 0 0)
 
 mkQuad :: (Fractional a) => Int -> Int -> a -> a -> a -> a -> QuadTree a
-mkQuad lim lvl tL tR bL bR
+mkQuad !lim !lvl !tL !tR !bL !bR
     | lvl >= lim = QuadNil
     | otherwise  = QuadTree
         { treeLevel = lvl'
@@ -54,15 +55,15 @@ mkQuad lim lvl tL tR bL bR
         , se = mkQuad lim lvl' c' e' s' bR
         }
     where
-        lvl' = lvl+1
-        c' = (tL + tR + bL + bR) / 4
-        n' = (tL + tR) / 2
-        e' = (tR + bR) /2
-        w' = (tL + bL) /2
-        s' = (bL + bR) /2
+        !lvl' = lvl+1
+        !c' = (tL + tR + bL + bR) / 4
+        !n' = (tL + tR) / 2
+        !e' = (tR + bR) /2
+        !w' = (tL + bL) /2
+        !s' = (bL + bR) /2
 
 flattenTexture :: Int -> Texture a -> [(I2, a)]
-flattenTexture n Texture{..} =
+flattenTexture !n Texture{..} =
     [ (I2 0 0, topLeft)
     , (I2 l 0, topRight)
     , (I2 0 l, botLeft)
@@ -72,11 +73,11 @@ flattenTexture n Texture{..} =
         l = 2^n
 
 flattenQuad :: Int -> I2 -> I2 -> QuadTree a -> [(I2, a)]
-flattenQuad lim x1y1 x2y2 q = Map.assocs (quadToMap lim x1y1 x2y2 q)
+flattenQuad !lim !x1y1 !x2y2 !q = Map.assocs (quadToMap lim x1y1 x2y2 q)
    
 quadToMap :: Int -> I2 -> I2 -> QuadTree a -> Map I2 a
 quadToMap _   _          _          QuadNil      = Map.empty
-quadToMap lim (I2 x1 y1) (I2 x2 y2) QuadTree{..}
+quadToMap !lim !(I2 x1 y1) !(I2 x2 y2) QuadTree{..}
     | treeLevel >= lim = Map.empty
     | treeLevel < 3    = nw' `par` ne' `par` sw' `par` (pseq se' result)
     | otherwise        = result
@@ -88,10 +89,10 @@ quadToMap lim (I2 x1 y1) (I2 x2 y2) QuadTree{..}
                              , (I2 x1 yH, w)
                              , (I2 xH y2, s)
                              ]
-        nw' = quadToMap lim (I2 x1 y1) (I2 xH yH) nw
-        ne' = quadToMap lim (I2 xH y1) (I2 x2 yH) ne
-        sw' = quadToMap lim (I2 x1 yH) (I2 xH y2) sw
-        se' = quadToMap lim (I2 xH yH) (I2 x2 y2) se
+        !nw' = quadToMap lim (I2 x1 y1) (I2 xH yH) nw
+        !ne' = quadToMap lim (I2 xH y1) (I2 x2 yH) ne
+        !sw' = quadToMap lim (I2 x1 yH) (I2 xH y2) sw
+        !se' = quadToMap lim (I2 xH yH) (I2 x2 y2) se
 
-        xH = x1 + (x2-x1) `div` 2
-        yH = y1 + (y2-y1) `div` 2
+        !xH = x1 + (x2-x1) `div` 2
+        !yH = y1 + (y2-y1) `div` 2
