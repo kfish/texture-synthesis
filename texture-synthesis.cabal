@@ -55,4 +55,17 @@ Executable texture-synthesis
       base < 3
 
   Build-Depends:
-    containers                >= 0.2     && < 0.5
+    containers                >= 0.2     && < 0.5,
+    parallel
+
+Test-suite tests
+  Type:              exitcode-stdio-1.0
+  Hs-source-dirs:    tests
+  Main-is:           Properties.hs
+  Build-depends:
+    base >= 3 && < 6,
+    test-framework             >= 0.3.3 && < 0.5,
+    test-framework-quickcheck2 >= 0.2.9 && < 0.3,
+    QuickCheck                 >= 2.4.0.1,
+    random                     == 1.0.*,
+    texture-synthesis
