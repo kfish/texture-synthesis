@@ -39,25 +39,32 @@ textureEmpty = Texture 0 0 0 0 QuadNil
 
 mkTexture :: Int -> IO (Texture Float)
 mkTexture !lim = do
-    quad <- MWC.withSystemRandom (mkQuad lim 0 0 0 0 0)
+    quad <- MWC.withSystemRandom (mkQuad lim 0 0 0 0 0 0.5 0.5)
     return (Texture 0 0 0 0 quad)
 
-mkQuad :: (Fractional a)
+mkQuad :: (Fractional a, MWC.Variate a)
        => Int -> Int -> a -> a -> a -> a
+       -> a -> a
        -> MWC.GenIO -> IO (QuadTree a)
-mkQuad !lim !lvl !tL !tR !bL !bR gen
+mkQuad !lim !lvl !tL !tR !bL !bR h range gen
     | lvl >= lim = return QuadNil
     | otherwise  = do
         let !lvl' = lvl+1
-            !c' = (tL + tR + bL + bR) / 4
-            !n' = (tL + tR) / 2
-            !e' = (tR + bR) /2
-            !w' = (tL + bL) /2
-            !s' = (bL + bR) /2
-        nw' <- mkQuad lim lvl' tL n' w' c' gen
-        ne' <- mkQuad lim lvl' n' tR c' e' gen
-        sw' <- mkQuad lim lvl' w' c' bL s' gen
-        se' <- mkQuad lim lvl' c' e' s' bR gen
+            rand = MWC.uniformR (negate range, range) gen
+        cR <- rand
+        nR <- rand
+        eR <- rand
+        wR <- rand
+        sR <- rand
+        let !c' = ((tL + tR + bL + bR) / 4) + cR
+            !n' = ((tL + tR) / 2) + nR
+            !e' = ((tR + bR) / 2) + eR
+            !w' = ((tL + bL) / 2) + wR
+            !s' = ((bL + bR) / 2) + sR
+        nw' <- mkQuad lim lvl' tL n' w' c' h (range * h) gen
+        ne' <- mkQuad lim lvl' n' tR c' e' h (range * h) gen
+        sw' <- mkQuad lim lvl' w' c' bL s' h (range * h) gen
+        se' <- mkQuad lim lvl' c' e' s' bR h (range * h) gen
         return QuadTree
             { treeLevel = lvl'
             , c = c'
