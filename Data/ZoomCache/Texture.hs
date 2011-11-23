@@ -45,6 +45,10 @@ module Data.ZoomCache.Texture (
     -- * Types
       TextureSlice(..)
 
+    -- * Iteratee reading of textures
+    , enumTexture
+    , enumSummaryTexture
+
     -- * Zoom-cache codec instances
     , SummaryData(..)
     , SummaryWork(..)
@@ -56,10 +60,14 @@ module Data.ZoomCache.Texture (
 import Blaze.ByteString.Builder
 import Control.Applicative ((<$>))
 import Control.Monad (replicateM)
+import Control.Monad.Trans (MonadIO)
 import Data.ByteString (ByteString)
 import Data.Iteratee (Iteratee)
+import qualified Data.Iteratee as I
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.Monoid (mconcat)
 import Data.Typeable
+import Data.ZoomCache
 import Data.ZoomCache.Codec
 
 ----------------------------------------------------------------------
@@ -175,3 +183,27 @@ appendSummaryTexture (TSDiff dur1) s1 (TSDiff dur2) s2 = SummaryTextureSlice {
         dur1' = fromIntegral dur1
         dur2' = fromIntegral dur2
         durSum = fromIntegral (dur1 + dur2)
+
+----------------------------------------------------------------------
+
+rawToTexture :: ZoomRaw -> [TextureSlice]
+rawToTexture (ZoomRaw xs) | typeOf xs == typeOf (undefined :: [TextureSlice]) =
+                               fromMaybe [] (cast xs :: Maybe [TextureSlice])
+                          | otherwise = []
+
+enumTexture :: (Functor m, MonadIO m)
+            => I.Enumeratee [Stream] [(TimeStamp, TextureSlice)] m a
+enumTexture = I.joinI . enumPackets . I.mapChunks (concatMap f)
+    where
+        f :: Packet -> [(TimeStamp, TextureSlice)]
+        f Packet{..} = zip packetTimeStamps (rawToTexture packetData)
+
+enumSummaryTexture :: (Functor m, MonadIO m)
+                   => Int
+                   -> I.Enumeratee [Stream] [Summary TextureSlice] m a
+enumSummaryTexture level =
+    I.joinI . enumSummaryLevel level .
+    I.mapChunks (catMaybes . map toSD)
+    where
+        toSD :: ZoomSummary -> Maybe (Summary TextureSlice)
+        toSD (ZoomSummary s) = cast s
