@@ -42,6 +42,15 @@ Field encoding formats:
 ----------------------------------------------------------------------
 
 module Data.ZoomCache.Texture (
+    -- * Types
+      TextureSlice(..)
+
+    -- * Zoom-cache codec instances
+    , SummaryData(..)
+    , SummaryWork(..)
+
+    -- * Codec identifiers
+    , textureIdentifiers
 ) where
 
 import Blaze.ByteString.Builder
@@ -62,6 +71,11 @@ textureLength = 5
 
 data TextureSlice = TextureSlice [Float]
     deriving (Show, Typeable)
+
+textureIdentifiers :: [IdentifyCodec]
+textureIdentifiers =
+    [ identifyCodec (undefined :: TextureSlice)
+    ]
 
 ----------------------------------------------------------------------
 
