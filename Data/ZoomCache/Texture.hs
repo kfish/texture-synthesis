@@ -1,4 +1,6 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -42,17 +44,19 @@ Field encoding formats:
 module Data.ZoomCache.Texture (
 ) where
 
+import Blaze.ByteString.Builder
 import Control.Applicative ((<$>))
 import Control.Monad (replicateM)
 import Data.ByteString (ByteString)
 import Data.Iteratee (Iteratee)
+import Data.Monoid (mconcat)
 import Data.Typeable
 import Data.ZoomCache.Codec
 
 ----------------------------------------------------------------------
 
 textureLength :: Int
-textureLength = 8
+textureLength = 5
 
 ----------------------------------------------------------------------
 
@@ -70,7 +74,7 @@ trackTypeTexture = "ZTEXf32b"
 
 instance ZoomReadable TextureSlice where
     data SummaryData TextureSlice = SummaryTextureSlice
-        { summaryAvgs :: [Float]
+        { summaryAvgs :: ![Float]
         }
 
     trackIdentifier = const trackTypeTexture
@@ -89,3 +93,71 @@ prettyPacketTexture = show
 
 prettySummaryTexture :: SummaryData TextureSlice -> String
 prettySummaryTexture SummaryTextureSlice{..} = show summaryAvgs
+
+----------------------------------------------------------------------
+-- Write
+
+instance ZoomWrite TextureSlice where
+    write = writeData
+
+instance ZoomWrite (TimeStamp, TextureSlice) where
+    write = writeDataVBR
+
+instance ZoomWritable TextureSlice where
+    data SummaryWork TextureSlice = SummaryWorkTextureSlice
+        { swTextureTime :: {-# UNPACK #-}!TimeStamp
+        , swTextureSums :: ![Float]
+        }
+    fromRaw           = fromTexture
+    fromSummaryData   = fromSummaryTexture
+
+    initSummaryWork   = initSummaryTexture
+    toSummaryData     = mkSummaryTexture
+    updateSummaryData = updateSummaryTexture
+    appendSummaryData = appendSummaryTexture
+
+fromSlice :: [Float] -> Builder
+fromSlice = mconcat . map fromFloat
+
+fromTexture :: TextureSlice -> Builder
+fromTexture (TextureSlice ts) = fromSlice ts
+
+fromSummaryTexture :: SummaryData TextureSlice -> Builder
+fromSummaryTexture (SummaryTextureSlice ts) = fromSlice ts
+
+initSummaryTexture :: TimeStamp -> SummaryWork TextureSlice
+initSummaryTexture entry = SummaryWorkTextureSlice {
+      swTextureTime = entry
+    , swTextureSums = replicate textureLength 0
+    }
+
+mkSummaryTexture :: TimeStampDiff -> SummaryWork TextureSlice
+                 -> SummaryData TextureSlice
+mkSummaryTexture (TSDiff dur) sw = SummaryTextureSlice {
+        summaryAvgs = map (/ dur') (swTextureSums sw)
+    }
+    where
+        dur' = fromIntegral dur
+
+updateSummaryTexture :: TimeStamp -> TextureSlice
+                     -> SummaryWork TextureSlice
+                     -> SummaryWork TextureSlice
+updateSummaryTexture t (TextureSlice ds) sw = SummaryWorkTextureSlice {
+      swTextureTime = t
+    , swTextureSums = zipWith (+) ds' (swTextureSums sw)
+    }
+    where
+        ds' = map (realToFrac . (* fromIntegral dur)) ds
+        !(TSDiff dur) = timeStampDiff t (swTextureTime sw)
+
+appendSummaryTexture :: TimeStampDiff -> SummaryData TextureSlice
+                     -> TimeStampDiff -> SummaryData TextureSlice
+                     -> SummaryData TextureSlice
+appendSummaryTexture (TSDiff dur1) s1 (TSDiff dur2) s2 = SummaryTextureSlice {
+        summaryAvgs = zipWith avg (summaryAvgs s1) (summaryAvgs s2)
+    }
+    where
+        avg d1 d2 = (d1 * dur1') + (d2 * dur2') / durSum
+        dur1' = fromIntegral dur1
+        dur2' = fromIntegral dur2
+        durSum = fromIntegral (dur1 + dur2)
