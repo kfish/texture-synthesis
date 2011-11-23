@@ -95,17 +95,19 @@ mkQuad !lim !lvl !tL !tR !bL !bR h range gen
             }
 
 flattenTexture :: Int -> Texture a -> [(I2, a)]
-flattenTexture !n Texture{..} =
-    [ (I2 0 0, topLeft)
-    , (I2 l 0, topRight)
-    , (I2 0 l, botLeft)
-    , (I2 l l, botRight)
-    ] ++ flattenQuad n (I2 0 0) (I2 l l) tree
+flattenTexture !n = Map.assocs . textureToMap n
+
+textureToMap :: Int -> Texture a -> Map I2 a
+textureToMap !n Texture{..} = Map.unions
+    [ Map.fromList [ (I2 0 0, topLeft)
+                   , (I2 l 0, topRight)
+                   , (I2 0 l, botLeft)
+                   , (I2 l l, botRight)
+                   ]
+    , quadToMap n (I2 0 0) (I2 l l) tree
+    ]
     where
         l = 2^n
-
-flattenQuad :: Int -> I2 -> I2 -> QuadTree a -> [(I2, a)]
-flattenQuad !lim !x1y1 !x2y2 !q = Map.assocs (quadToMap lim x1y1 x2y2 q)
    
 quadToMap :: Int -> I2 -> I2 -> QuadTree a -> Map I2 a
 quadToMap _   _          _          QuadNil      = Map.empty
