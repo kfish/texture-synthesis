@@ -14,12 +14,18 @@ module Graphics.TextureSynthesis (
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad.ST (runST)
 import Control.Parallel
+import Data.Function (on)
+import Data.List (groupBy)
 import Data.Map (Map)
+import Data.Ord (comparing)
 import qualified Data.Map as Map
 import qualified System.Random.MWC as MWC
 
 -- | Point on the 2D plane
-data I2 = I2 !Int !Int
+data I2 = I2 {
+      iX :: !Int
+    , iY :: !Int
+    }
     deriving (Eq, Ord, Show)
 
 ----------------------------------------------------------------------
@@ -93,6 +99,9 @@ mkQuad !lim !lvl !tL !tR !bL !bR h range gen
             , sw = sw'
             , se = se'
             }
+
+slices :: [(I2, a)] -> [[a]]
+slices = map (map snd) . groupBy ((==) `on` (iX . fst))
 
 flattenTexture :: Int -> Texture a -> [(I2, a)]
 flattenTexture !n = Map.assocs . textureToMap n
