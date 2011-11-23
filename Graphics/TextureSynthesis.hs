@@ -6,11 +6,13 @@ module Graphics.TextureSynthesis (
       Texture(..)
     , textureEmpty
     , genTexture
+    , genTextureDefault
     , mkTexture
     , flattenTexture
 ) where
 
 import Control.Monad.Primitive (PrimMonad, PrimState)
+import Control.Monad.ST (runST)
 import Control.Parallel
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -41,6 +43,12 @@ textureEmpty = Texture 0 0 0 0 QuadNil
 
 genTexture :: Int -> IO (Texture Float)
 genTexture = MWC.withSystemRandom . mkTextureIO
+
+-- | Generate a texture using the default seed
+genTextureDefault :: Int -> Texture Float
+genTextureDefault lim = runST $ do
+    gen <- MWC.create
+    mkTexture lim gen
 
 mkTextureIO :: Int -> MWC.GenIO -> IO (Texture Float)
 mkTextureIO = mkTexture
