@@ -9,6 +9,7 @@ module Graphics.TextureSynthesis (
     , genTextureDefault
     , mkTexture
     , flattenTexture
+    , slices
 ) where
 
 import Control.Monad.Primitive (PrimMonad, PrimState)
