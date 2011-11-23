@@ -12,7 +12,7 @@ import Graphics.TextureSynthesis
 -- | Check that a tile of depth n is fully filled.
 -- The size of tiles follows sequence A028400 (2^n + 1)^2
 fillTile :: Int -> Bool
-fillTile n = length (flattenTexture (n+1) (mkTexture n)) == square (2^n +1)
+fillTile n = length (flattenTexture (n+1) (genTextureDefault n)) == square (2^n +1)
     where
         square x = x * x
 
