@@ -36,7 +36,8 @@ Library
   Build-depends:
     containers                >= 0.2     && < 0.5,
     mwc-random,
-    parallel
+    parallel,
+    primitive
   
   -- Modules not exported by this package.
   -- Other-modules:       
@@ -58,7 +59,8 @@ Executable texture-synthesis
   Build-Depends:
     containers                >= 0.2     && < 0.5,
     mwc-random,
-    parallel
+    parallel,
+    primitive
 
 Test-suite tests
   Type:              exitcode-stdio-1.0

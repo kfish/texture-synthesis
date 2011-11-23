@@ -10,6 +10,7 @@ module Graphics.TextureSynthesis (
     , flattenTexture
 ) where
 
+import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Parallel
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -39,17 +40,20 @@ textureEmpty :: Texture Float
 textureEmpty = Texture 0 0 0 0 QuadNil
 
 genTexture :: Int -> IO (Texture Float)
-genTexture = MWC.withSystemRandom . mkTexture
+genTexture = MWC.withSystemRandom . mkTextureIO
 
-mkTexture :: Int -> MWC.GenIO -> IO (Texture Float)
+mkTextureIO :: Int -> MWC.GenIO -> IO (Texture Float)
+mkTextureIO = mkTexture
+
+mkTexture :: PrimMonad m => Int -> MWC.Gen (PrimState m) -> m (Texture Float)
 mkTexture !lim gen = do
     quad <- mkQuad lim 0 0 0 0 0 0.5 0.5 gen
     return (Texture 0 0 0 0 quad)
 
-mkQuad :: (Fractional a, MWC.Variate a)
+mkQuad :: (Fractional a, MWC.Variate a, PrimMonad m)
        => Int -> Int -> a -> a -> a -> a
        -> a -> a
-       -> MWC.GenIO -> IO (QuadTree a)
+       -> MWC.Gen (PrimState m) -> m (QuadTree a)
 mkQuad !lim !lvl !tL !tR !bL !bR h range gen
     | lvl >= lim = return QuadNil
     | otherwise  = do
