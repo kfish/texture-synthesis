@@ -73,7 +73,9 @@ import Data.ZoomCache.Codec
 ----------------------------------------------------------------------
 
 textureLength :: Int
-textureLength = 5
+textureLength = (2^5)+1
+-- textureLength = 17
+-- textureLength = 5
 
 ----------------------------------------------------------------------
 
