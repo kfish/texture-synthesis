@@ -124,12 +124,12 @@ prettySummaryTexture SummaryTextureSlice{..} = show summaryAvgs
 instance ZoomWrite TextureSlice where
     write = writeData
 
-instance ZoomWrite (TimeStamp, TextureSlice) where
+instance ZoomWrite (SampleOffset, TextureSlice) where
     write = writeDataVBR
 
 instance ZoomWritable TextureSlice where
     data SummaryWork TextureSlice = SummaryWorkTextureSlice
-        { swTextureTime :: {-# UNPACK #-}!TimeStamp
+        { swTextureTime :: {-# UNPACK #-}!SampleOffset
         , swTextureSums :: ![Float]
         }
     fromRaw           = fromTexture
@@ -149,21 +149,21 @@ fromTexture (TextureSlice ts) = fromSlice ts
 fromSummaryTexture :: SummaryData TextureSlice -> Builder
 fromSummaryTexture (SummaryTextureSlice ts) = fromSlice ts
 
-initSummaryTexture :: TimeStamp -> SummaryWork TextureSlice
+initSummaryTexture :: SampleOffset -> SummaryWork TextureSlice
 initSummaryTexture entry = SummaryWorkTextureSlice {
       swTextureTime = entry
     , swTextureSums = replicate textureLength 0
     }
 
-mkSummaryTexture :: TimeStampDiff -> SummaryWork TextureSlice
+mkSummaryTexture :: SampleOffsetDiff -> SummaryWork TextureSlice
                  -> SummaryData TextureSlice
-mkSummaryTexture (TSDiff dur) sw = SummaryTextureSlice {
+mkSummaryTexture (SODiff dur) sw = SummaryTextureSlice {
         summaryAvgs = map (/ dur') (swTextureSums sw)
     }
     where
         dur' = fromIntegral dur
 
-updateSummaryTexture :: TimeStamp -> TextureSlice
+updateSummaryTexture :: SampleOffset -> TextureSlice
                      -> SummaryWork TextureSlice
                      -> SummaryWork TextureSlice
 updateSummaryTexture t (TextureSlice ds) sw = SummaryWorkTextureSlice {
@@ -172,12 +172,12 @@ updateSummaryTexture t (TextureSlice ds) sw = SummaryWorkTextureSlice {
     }
     where
         ds' = map (realToFrac . (* fromIntegral dur)) ds
-        !(TSDiff dur) = timeStampDiff t (swTextureTime sw)
+        !(SODiff dur) = sampleOffsetDiff t (swTextureTime sw)
 
-appendSummaryTexture :: TimeStampDiff -> SummaryData TextureSlice
-                     -> TimeStampDiff -> SummaryData TextureSlice
+appendSummaryTexture :: SampleOffsetDiff -> SummaryData TextureSlice
+                     -> SampleOffsetDiff -> SummaryData TextureSlice
                      -> SummaryData TextureSlice
-appendSummaryTexture (TSDiff dur1) s1 (TSDiff dur2) s2 = SummaryTextureSlice {
+appendSummaryTexture (SODiff dur1) s1 (SODiff dur2) s2 = SummaryTextureSlice {
         summaryAvgs = zipWith avg (summaryAvgs s1) (summaryAvgs s2)
     }
     where
@@ -194,11 +194,11 @@ rawToTexture (ZoomRaw xs) | typeOf xs == typeOf (undefined :: [TextureSlice]) =
                           | otherwise = []
 
 enumTexture :: (Functor m, MonadIO m)
-            => I.Enumeratee [Stream] [(TimeStamp, TextureSlice)] m a
+            => I.Enumeratee [Stream] [(SampleOffset, TextureSlice)] m a
 enumTexture = I.joinI . enumPackets . I.mapChunks (concatMap f)
     where
-        f :: Packet -> [(TimeStamp, TextureSlice)]
-        f Packet{..} = zip packetTimeStamps (rawToTexture packetData)
+        f :: Packet -> [(SampleOffset, TextureSlice)]
+        f Packet{..} = zip packetSampleOffsets (rawToTexture packetData)
 
 enumSummaryTexture :: (Functor m, MonadIO m)
                    => Int

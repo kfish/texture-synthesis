@@ -15,6 +15,6 @@ main = do
     -- ss <- slices <$> flattenTexture 3 <$> genTexture 2
 
     let ts = map TextureSlice ss
-        track = oneTrack (undefined :: TextureSlice) False False ConstantDR 1000 "texture"
+        track = oneTrack (undefined :: TextureSlice) False False ConstantSR 1000 "texture"
 
     withFileWrite track True (mapM_ (write 1) ts) "texture.zoom"
