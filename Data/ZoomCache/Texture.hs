@@ -195,17 +195,17 @@ rawToTexture (ZoomRaw xs) | typeOf xs == typeOf (undefined :: [TextureSlice]) =
 
 enumTexture :: (Functor m, MonadIO m)
             => I.Enumeratee [Stream] [(SampleOffset, TextureSlice)] m a
-enumTexture = I.joinI . enumPackets . I.mapChunks (concatMap f)
+enumTexture = I.joinI . enumPacketSOs . I.mapChunks (concatMap f)
     where
-        f :: Packet -> [(SampleOffset, TextureSlice)]
-        f Packet{..} = zip packetSampleOffsets (rawToTexture packetData)
+        f :: PacketSO -> [(SampleOffset, TextureSlice)]
+        f PacketSO{..} = zip packetSOSampleOffsets (rawToTexture packetSOData)
 
 enumSummaryTexture :: (Functor m, MonadIO m)
                    => Int
-                   -> I.Enumeratee [Stream] [Summary TextureSlice] m a
+                   -> I.Enumeratee [Stream] [SummarySO TextureSlice] m a
 enumSummaryTexture level =
-    I.joinI . enumSummaryLevel level .
+    I.joinI . enumSummarySOLevel level .
     I.mapChunks (catMaybes . map toSD)
     where
-        toSD :: ZoomSummary -> Maybe (Summary TextureSlice)
-        toSD (ZoomSummary s) = cast s
+        toSD :: ZoomSummarySO -> Maybe (SummarySO TextureSlice)
+        toSD (ZoomSummarySO s) = cast s
