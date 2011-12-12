@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS -Wall #-}
 
 module Main (
@@ -6,14 +7,121 @@ module Main (
 ) where
 
 import Control.Applicative ((<$>))
+import Control.Monad (foldM)
 import Control.Monad.Trans (liftIO)
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as C
 import Data.Default
 import Data.ZoomCache
 import Data.ZoomCache.Multichannel
+import System.Console.GetOpt
 import UI.Command
 
 import Data.ZoomCache.Texture
 import Graphics.TextureSynthesis
+
+------------------------------------------------------------
+
+data Config = Config
+    { noRaw    :: Bool
+    , delta    :: Bool
+    , zlib     :: Bool
+    , variable :: Bool
+    , intData  :: Bool
+    , label    :: ByteString
+    , rate     :: Integer
+    , channels :: Int
+    , wmLevel  :: Int
+    , track    :: TrackNo
+    }
+
+instance Default Config where
+    def = defConfig
+
+defConfig :: Config
+defConfig = Config
+    { noRaw    = False
+    , delta    = False
+    , zlib     = False
+    , variable = False
+    , intData  = False
+    , label    = "texture"
+    , rate     = 1000
+    , channels = 1
+    , wmLevel  = 100
+    , track    = 1
+    }
+
+data Option = NoRaw
+            | Delta
+            | ZLib
+            | Variable
+            | IntData
+            | Label String
+            | Rate String
+            | Channels String
+            | Watermark String
+            | Track String
+    deriving (Eq)
+
+options :: [OptDescr Option]
+options = genOptions
+
+genOptions :: [OptDescr Option]
+genOptions =
+    [ Option ['z'] ["no-raw"] (NoArg NoRaw)
+             "Do NOT include raw data in the output"
+    , Option ['d'] ["delta"] (NoArg Delta)
+             "Delta-encode data"
+    , Option ['Z'] ["zlib"] (NoArg ZLib)
+             "Zlib-compress data"
+    , Option ['b'] ["variable"] (NoArg Variable)
+             "Generate variable-rate data"
+    , Option ['i'] ["integer"] (NoArg IntData)
+             "Generate integer data"
+    , Option ['l'] ["label"] (ReqArg Label "label")
+             "Set track label"
+    , Option ['r'] ["rate"] (ReqArg Rate "data-rate")
+             "Set track rate"
+    , Option ['c'] ["channels"] (ReqArg Channels "channels")
+             "Set number of channels"
+    , Option ['w'] ["watermark"] (ReqArg Watermark "watermark")
+             "Set high-watermark level"
+    , Option ['t'] ["track"] (ReqArg Track "trackNo")
+             "Set or select track number"
+    ]
+
+processArgs :: [String] -> IO (Config, [String])
+processArgs args = do
+    case getOpt RequireOrder options args of
+        (opts, args', [] ) -> do
+            config <- processConfig def opts
+            return (config, args')
+        (_,    _,     _:_) -> return (def, args)
+
+processConfig :: Config -> [Option] -> IO Config
+processConfig = foldM processOneOption
+    where
+        processOneOption config NoRaw = do
+            return $ config {noRaw = True}
+        processOneOption config Delta = do
+            return $ config {delta = True}
+        processOneOption config ZLib = do
+            return $ config {zlib = True}
+        processOneOption config Variable = do
+            return $ config {variable = True}
+        processOneOption config IntData = do
+            return $ config {intData = True}
+        processOneOption config (Label s) = do
+            return $ config {label = C.pack s}
+        processOneOption config (Rate s) = do
+            return $ config {rate = read s}
+        processOneOption config (Channels s) = do
+            return $ config {channels = read s}
+        processOneOption config (Watermark s) = do
+            return $ config {wmLevel = read s}
+        processOneOption config (Track s) = do
+            return $ config {track = read s}
 
 ------------------------------------------------------------
 
@@ -28,20 +136,23 @@ texGen = defCmd {
 
 texGenHandler :: App () ()
 texGenHandler = do
-    filenames <- appArgs
-    liftIO $ texWriteFile filenames
+    (config, filenames) <- liftIO . processArgs =<< appArgs
+    liftIO $ texWriteFile config filenames
 
-texWriteFile :: [FilePath] -> IO ()
-texWriteFile []       = return ()
-texWriteFile (path:_) = do
+texWriteFile :: Config -> [FilePath] -> IO ()
+texWriteFile _          []       = return ()
+texWriteFile Config{..} (path:_) = do
     ss <- slices <$> flattenTexture 6 <$> genTexture 5
     -- ss <- slices <$> flattenTexture 5 <$> genTexture 4
     -- ss <- slices <$> flattenTexture 3 <$> genTexture 2
 
     let ts = map TextureSlice ss
-        track = oneTrack (undefined :: TextureSlice) False False ConstantSR 1000 "texture"
+        spec = oneTrack (undefined :: TextureSlice) delta zlib ConstantSR rate' label
 
-    withFileWrite track True (mapM_ (write 1) ts) path
+    withFileWrite spec (not noRaw) (sW >> mapM_ (write track) ts) path
+    where
+        rate' = fromInteger rate
+        sW = setWatermark 1 wmLevel
 
 ------------------------------------------------------------
 
@@ -56,28 +167,29 @@ texGen1d = defCmd {
 
 texGen1dHandler :: App () ()
 texGen1dHandler = do
-    filenames <- appArgs
-    liftIO $ texWriteFile1d filenames
+    (config, filenames) <- liftIO . processArgs =<< appArgs
+    liftIO $ texWriteFile1d config filenames
 
-texWriteFile1d :: [FilePath] -> IO ()
-texWriteFile1d []       = return ()
-texWriteFile1d (path:_) = do
+texWriteFile1d :: Config -> [FilePath] -> IO ()
+texWriteFile1d _          []       = return ()
+texWriteFile1d Config{..} (path:_) = do
     ss <- slices <$> flattenTexture 9 <$> genTexture 8
     -- ss <- slices <$> flattenTexture 5 <$> genTexture 4
     -- ss <- slices <$> flattenTexture 3 <$> genTexture 2
 
-    let channels = 12
-
     let ts :: [Double]
         ts = take 100000 $ map (realToFrac . (* 1000.0)) $ concat ss
         -- track = oneTrack (undefined :: Double) False False ConstantSR 1000 "data"
-        track = oneTrackMultichannel channels (undefined :: Double) False False VariableSR 1000 "data"
+        spec = oneTrackMultichannel channels (undefined :: Double) delta zlib VariableSR rate' label
 
     -- mapM_ print ts
 
-    -- withFileWrite track False (setWatermark 1 100 >> mapM_ (write 1) ts) "texture1D.zoom"
-    withFileWrite track False (setWatermark 1 100 >> mapM_ (write 1)
+    -- withFileWrite spec (not noRaw) (sW >> mapM_ (write track) ts) path
+    withFileWrite spec (not noRaw) (sW >> mapM_ (write track)
         (zip (map SO [10000,10002..]) (map (replicate channels) ts))) path
+    where
+        rate' = fromInteger rate
+        sW = setWatermark 1 wmLevel
 
 ------------------------------------------------------------
 -- The Application
