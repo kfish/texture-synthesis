@@ -31,7 +31,6 @@ Library
       base < 3
 
   Exposed-modules:
-    Data.ZoomCache.Texture,
     Graphics.TextureSynthesis
 
   Build-depends:
