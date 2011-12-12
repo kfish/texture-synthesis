@@ -147,9 +147,15 @@ texWriteFile Config{..} (path:_) = do
     -- ss <- slices <$> flattenTexture 3 <$> genTexture 2
 
     let ts = map TextureSlice ss
-        spec = oneTrack (undefined :: TextureSlice) delta zlib ConstantSR rate' label
 
-    withFileWrite spec (not noRaw) (sW >> mapM_ (write track) ts) path
+    if variable
+        then do
+            let spec = oneTrack (undefined :: TextureSlice) delta zlib VariableSR rate' label
+            withFileWrite spec (not noRaw) (sW >> mapM_ (write track)
+                (zip (map SO [10000,10002..]) ts)) path
+        else do
+            let spec = oneTrack (undefined :: TextureSlice) delta zlib ConstantSR rate' label
+            withFileWrite spec (not noRaw) (sW >> mapM_ (write track) ts) path
     where
         rate' = fromInteger rate
         sW = setWatermark 1 wmLevel
@@ -179,14 +185,15 @@ texWriteFile1d Config{..} (path:_) = do
 
     let ts :: [Double]
         ts = take 100000 $ map (realToFrac . (* 1000.0)) $ concat ss
-        -- track = oneTrack (undefined :: Double) False False ConstantSR 1000 "data"
-        spec = oneTrackMultichannel channels (undefined :: Double) delta zlib VariableSR rate' label
 
-    -- mapM_ print ts
-
-    -- withFileWrite spec (not noRaw) (sW >> mapM_ (write track) ts) path
-    withFileWrite spec (not noRaw) (sW >> mapM_ (write track)
-        (zip (map SO [10000,10002..]) (map (replicate channels) ts))) path
+    if variable
+        then do
+            let spec = oneTrackMultichannel channels (undefined :: Double) delta zlib VariableSR rate' label
+            withFileWrite spec (not noRaw) (sW >> mapM_ (write track)
+                (zip (map SO [10000,10002..]) (map (replicate channels) ts))) path
+        else do
+            let spec = oneTrackMultichannel channels (undefined :: Double) delta zlib ConstantSR rate' label
+            withFileWrite spec (not noRaw) (sW >> mapM_ (write track) (map (replicate channels) ts)) path
     where
         rate' = fromInteger rate
         sW = setWatermark 1 wmLevel
