@@ -7,7 +7,7 @@ module Main (
 ) where
 
 import Control.Applicative ((<$>))
-import Control.Monad (foldM)
+import Control.Monad (foldM, replicateM_)
 import Control.Monad.Trans (liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C
@@ -141,18 +141,18 @@ texGenHandler = do
 texWriteFile :: Config -> [FilePath] -> IO ()
 texWriteFile _          []       = return ()
 texWriteFile Config{..} (path:_) = do
-    ss <- slices <$> flattenTexture 6 <$> genTexture 5
-    -- ss <- slices <$> flattenTexture 5 <$> genTexture 4
-    -- ss <- slices <$> flattenTexture 3 <$> genTexture 2
+    let mk = slices <$> flattenTexture 6 <$> genTexture 5
+    -- let mk = slices <$> flattenTexture 5 <$> genTexture 4
+    -- let mk = slices <$> flattenTexture 3 <$> genTexture 2
 
     if variable
         then do
             let spec = oneTrackMultichannel channels (undefined :: Float) delta zlib VariableSR rate' label
-            withFileWrite spec (not noRaw) (sW >> mapM_ (write track)
-                (zip (map SO [10000,10002..]) ss)) path
+            withFileWrite spec (not noRaw) (sW >> liftIO mk >>= (\ss -> mapM_ (write track)
+                (zip (map SO [10000,10002..]) ss))) path
         else do
             let spec = oneTrackMultichannel channels (undefined :: Float) delta zlib ConstantSR rate' label
-            withFileWrite spec (not noRaw) (sW >> mapM_ (write track) ss) path
+            withFileWrite spec (not noRaw) (sW >> replicateM_ 100 (liftIO mk >>= mapM_ (write track))) path
     where
         rate' = fromInteger rate
         sW = setWatermark 1 wmLevel
