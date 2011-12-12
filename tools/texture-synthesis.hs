@@ -17,7 +17,6 @@ import Data.ZoomCache.Multichannel
 import System.Console.GetOpt
 import UI.Command
 
-import Data.ZoomCache.Texture
 import Graphics.TextureSynthesis
 
 ------------------------------------------------------------
@@ -146,16 +145,14 @@ texWriteFile Config{..} (path:_) = do
     -- ss <- slices <$> flattenTexture 5 <$> genTexture 4
     -- ss <- slices <$> flattenTexture 3 <$> genTexture 2
 
-    let ts = map TextureSlice ss
-
     if variable
         then do
-            let spec = oneTrack (undefined :: TextureSlice) delta zlib VariableSR rate' label
+            let spec = oneTrackMultichannel channels (undefined :: Float) delta zlib VariableSR rate' label
             withFileWrite spec (not noRaw) (sW >> mapM_ (write track)
-                (zip (map SO [10000,10002..]) ts)) path
+                (zip (map SO [10000,10002..]) ss)) path
         else do
-            let spec = oneTrack (undefined :: TextureSlice) delta zlib ConstantSR rate' label
-            withFileWrite spec (not noRaw) (sW >> mapM_ (write track) ts) path
+            let spec = oneTrackMultichannel channels (undefined :: Float) delta zlib ConstantSR rate' label
+            withFileWrite spec (not noRaw) (sW >> mapM_ (write track) ss) path
     where
         rate' = fromInteger rate
         sW = setWatermark 1 wmLevel
