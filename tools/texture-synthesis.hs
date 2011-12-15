@@ -12,6 +12,7 @@ import Control.Monad.Trans (liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C
 import Data.Default
+import Data.Time.Clock (getCurrentTime)
 import Data.ZoomCache
 import Data.ZoomCache.Multichannel
 import System.Console.GetOpt
@@ -141,6 +142,8 @@ texGenHandler = do
 texWriteFile :: Config -> [FilePath] -> IO ()
 texWriteFile _          []       = return ()
 texWriteFile Config{..} (path:_) = do
+    now <- getCurrentTime
+
     let mk = slices <$> flattenTexture 6 <$> genTexture 5
     -- let mk = slices <$> flattenTexture 5 <$> genTexture 4
     -- let mk = slices <$> flattenTexture 3 <$> genTexture 2
@@ -148,11 +151,11 @@ texWriteFile Config{..} (path:_) = do
     if variable
         then do
             let spec = oneTrackMultichannel channels (undefined :: Float) delta zlib VariableSR rate' label
-            withFileWrite spec (not noRaw) (sW >> liftIO mk >>= (\ss -> mapM_ (write track)
+            withFileWrite spec (Just now) (not noRaw) (sW >> liftIO mk >>= (\ss -> mapM_ (write track)
                 (zip (map SO [10000,10002..]) ss))) path
         else do
             let spec = oneTrackMultichannel channels (undefined :: Float) delta zlib ConstantSR rate' label
-            withFileWrite spec (not noRaw) (sW >> replicateM_ 100 (liftIO mk >>= mapM_ (write track))) path
+            withFileWrite spec (Just now) (not noRaw) (sW >> replicateM_ 100 (liftIO mk >>= mapM_ (write track))) path
     where
         rate' = fromInteger rate
         sW = setWatermark 1 wmLevel
@@ -176,6 +179,8 @@ texGen1dHandler = do
 texWriteFile1d :: Config -> [FilePath] -> IO ()
 texWriteFile1d _          []       = return ()
 texWriteFile1d Config{..} (path:_) = do
+    now <- getCurrentTime
+
     ss <- slices <$> flattenTexture 9 <$> genTexture 8
     -- ss <- slices <$> flattenTexture 5 <$> genTexture 4
     -- ss <- slices <$> flattenTexture 3 <$> genTexture 2
@@ -186,11 +191,11 @@ texWriteFile1d Config{..} (path:_) = do
     if variable
         then do
             let spec = oneTrackMultichannel channels (undefined :: Double) delta zlib VariableSR rate' label
-            withFileWrite spec (not noRaw) (sW >> mapM_ (write track)
+            withFileWrite spec (Just now) (not noRaw) (sW >> mapM_ (write track)
                 (zip (map SO [10000,10002..]) (map (replicate channels) ts))) path
         else do
             let spec = oneTrackMultichannel channels (undefined :: Double) delta zlib ConstantSR rate' label
-            withFileWrite spec (not noRaw) (sW >> mapM_ (write track) (map (replicate channels) ts)) path
+            withFileWrite spec (Just now) (not noRaw) (sW >> mapM_ (write track) (map (replicate channels) ts)) path
     where
         rate' = fromInteger rate
         sW = setWatermark 1 wmLevel
