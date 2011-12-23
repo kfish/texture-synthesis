@@ -9,12 +9,12 @@ module Main (
 import Control.Applicative ((<$>))
 import Control.Monad (foldM, replicateM_)
 import Control.Monad.Trans (liftIO)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C
 import Data.Default
+import qualified Data.IntMap as IM
 import Data.Time.Clock (getCurrentTime)
 import Data.ZoomCache
-import Data.ZoomCache.Multichannel
+import Data.ZoomCache.Multichannel()
 import System.Console.GetOpt
 import UI.Command
 
@@ -24,15 +24,12 @@ import Graphics.TextureSynthesis
 
 data Config = Config
     { noRaw    :: Bool
-    , delta    :: Bool
-    , zlib     :: Bool
-    , srType   :: SampleRateType
-    , intData  :: Bool
-    , label    :: ByteString
-    , rate     :: Integer
     , channels :: Int
     , wmLevel  :: Int
     , track    :: TrackNo
+    , intData  :: Bool
+    , variable :: Bool
+    , spec     :: TrackSpec
     }
 
 instance Default Config where
@@ -41,27 +38,27 @@ instance Default Config where
 defConfig :: Config
 defConfig = Config
     { noRaw    = False
-    , delta    = False
-    , zlib     = False
-    , srType   = ConstantSR
-    , intData  = False
-    , label    = "texture"
-    , rate     = 1000
     , channels = 1
     , wmLevel  = 100
     , track    = 1
+    , intData  = False
+    , variable = False
+    , spec     = def { specDeltaEncode = False
+                     , specZlibCompress = False
+                     , specName = "texture"
+                     }
     }
 
 data Option = NoRaw
+            | Channels String
+            | Watermark String
+            | Track String
             | Delta
             | ZLib
             | Variable
             | IntData
-            | Label String
             | Rate String
-            | Channels String
-            | Watermark String
-            | Track String
+            | Label String
     deriving (Eq)
 
 options :: [OptDescr Option]
@@ -71,6 +68,12 @@ genOptions :: [OptDescr Option]
 genOptions =
     [ Option ['z'] ["no-raw"] (NoArg NoRaw)
              "Do NOT include raw data in the output"
+    , Option ['c'] ["channels"] (ReqArg Channels "channels")
+             "Set number of channels"
+    , Option ['w'] ["watermark"] (ReqArg Watermark "watermark")
+             "Set high-watermark level"
+    , Option ['t'] ["track"] (ReqArg Track "trackNo")
+             "Set or select track number"
     , Option ['d'] ["delta"] (NoArg Delta)
              "Delta-encode data"
     , Option ['Z'] ["zlib"] (NoArg ZLib)
@@ -79,16 +82,10 @@ genOptions =
              "Generate variable-rate data"
     , Option ['i'] ["integer"] (NoArg IntData)
              "Generate integer data"
-    , Option ['l'] ["label"] (ReqArg Label "label")
-             "Set track label"
     , Option ['r'] ["rate"] (ReqArg Rate "data-rate")
              "Set track rate"
-    , Option ['c'] ["channels"] (ReqArg Channels "channels")
-             "Set number of channels"
-    , Option ['w'] ["watermark"] (ReqArg Watermark "watermark")
-             "Set high-watermark level"
-    , Option ['t'] ["track"] (ReqArg Track "trackNo")
-             "Set or select track number"
+    , Option ['l'] ["label"] (ReqArg Label "label")
+             "Set track label"
     ]
 
 processArgs :: [String] -> IO (Config, [String])
@@ -104,24 +101,29 @@ processConfig = foldM processOneOption
     where
         processOneOption config NoRaw = do
             return $ config {noRaw = True}
-        processOneOption config Delta = do
-            return $ config {delta = True}
-        processOneOption config ZLib = do
-            return $ config {zlib = True}
-        processOneOption config Variable = do
-            return $ config {srType = VariableSR}
-        processOneOption config IntData = do
-            return $ config {intData = True}
-        processOneOption config (Label s) = do
-            return $ config {label = C.pack s}
-        processOneOption config (Rate s) = do
-            return $ config {rate = read s}
         processOneOption config (Channels s) = do
             return $ config {channels = read s}
         processOneOption config (Watermark s) = do
             return $ config {wmLevel = read s}
         processOneOption config (Track s) = do
             return $ config {track = read s}
+
+        processOneOption config Delta = do
+            return $ config { spec = (spec config){specDeltaEncode = True} }
+        processOneOption config ZLib = do
+            return $ config { spec = (spec config){specZlibCompress = True} }
+        processOneOption config Variable = do
+            return $ config { variable = True
+                            , spec = (spec config){specSRType = VariableSR}
+                            }
+        processOneOption config IntData = do
+            return $ config { intData = True
+                            , spec = setCodec (undefined :: Int) (spec config)
+                            }
+        processOneOption config (Rate s) = do
+            return $ config { spec = (spec config){specRate = fromInteger $ read s} }
+        processOneOption config (Label s) = do
+            return $ config { spec = (spec config){specName = C.pack s} }
 
 ------------------------------------------------------------
 
@@ -150,16 +152,15 @@ texWriteFile Config{..} (path:_) = do
 
     if variable
         then do
-            let spec = oneTrackMultichannel channels (undefined :: Float) delta zlib VariableSR rate' label
-            withFileWrite spec (Just now) (not noRaw) (sW >> liftIO mk >>= (\ss -> mapM_ (write track)
+            withFileWrite trackMap (Just now) (not noRaw) (sW >> liftIO mk >>= (\ss -> mapM_ (write track)
                 (zip (map SO [10000,10002..]) ss))) path
         else do
-            let spec = oneTrackMultichannel channels (undefined :: Float) delta zlib ConstantSR rate' label
-            withFileWrite spec (Just now) (not noRaw) (sW >> replicateM_ 100 (liftIO mk >>= mapM_ (write track))) path
+            withFileWrite trackMap (Just now) (not noRaw) (sW >> replicateM_ 100 (liftIO mk >>= mapM_ (write track))) path
     where
-        rate' = fromInteger rate
+        trackMap = IM.singleton track spec'
         sW = setWatermark track wmLevel
-        variable = srType == VariableSR
+        spec' | channels == 1 = setCodec (undefined :: Float) spec
+              | otherwise     = setCodecMultichannel channels (undefined :: Float) spec
 
 ------------------------------------------------------------
 
@@ -191,16 +192,15 @@ texWriteFile1d Config{..} (path:_) = do
 
     if variable
         then do
-            let spec = oneTrackMultichannel channels (undefined :: Double) delta zlib VariableSR rate' label
-            withFileWrite spec (Just now) (not noRaw) (sW >> mapM_ (write track)
+            withFileWrite trackMap (Just now) (not noRaw) (sW >> mapM_ (write track)
                 (zip (map SO [10000,10002..]) (map (replicate channels) ts))) path
         else do
-            let spec = oneTrackMultichannel channels (undefined :: Double) delta zlib ConstantSR rate' label
-            withFileWrite spec (Just now) (not noRaw) (sW >> mapM_ (write track) (map (replicate channels) ts)) path
+            withFileWrite trackMap (Just now) (not noRaw) (sW >> mapM_ (write track) (map (replicate channels) ts)) path
     where
-        rate' = fromInteger rate
+        trackMap = IM.singleton track spec'
         sW = setWatermark track wmLevel
-        variable = srType == VariableSR
+        spec' | channels == 1 = setCodec (undefined :: Double) spec
+              | otherwise     = setCodecMultichannel channels (undefined :: Double) spec
 
 ------------------------------------------------------------
 -- The Application
