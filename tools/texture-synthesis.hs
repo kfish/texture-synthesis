@@ -158,7 +158,7 @@ texWriteFile Config{..} (path:_) = do
             withFileWrite spec (Just now) (not noRaw) (sW >> replicateM_ 100 (liftIO mk >>= mapM_ (write track))) path
     where
         rate' = fromInteger rate
-        sW = setWatermark 1 wmLevel
+        sW = setWatermark track wmLevel
 
 ------------------------------------------------------------
 
@@ -198,7 +198,7 @@ texWriteFile1d Config{..} (path:_) = do
             withFileWrite spec (Just now) (not noRaw) (sW >> mapM_ (write track) (map (replicate channels) ts)) path
     where
         rate' = fromInteger rate
-        sW = setWatermark 1 wmLevel
+        sW = setWatermark track wmLevel
 
 ------------------------------------------------------------
 -- The Application
