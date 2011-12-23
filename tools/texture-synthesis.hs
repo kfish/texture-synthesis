@@ -26,7 +26,7 @@ data Config = Config
     { noRaw    :: Bool
     , delta    :: Bool
     , zlib     :: Bool
-    , variable :: Bool
+    , srType   :: SampleRateType
     , intData  :: Bool
     , label    :: ByteString
     , rate     :: Integer
@@ -43,7 +43,7 @@ defConfig = Config
     { noRaw    = False
     , delta    = False
     , zlib     = False
-    , variable = False
+    , srType   = ConstantSR
     , intData  = False
     , label    = "texture"
     , rate     = 1000
@@ -109,7 +109,7 @@ processConfig = foldM processOneOption
         processOneOption config ZLib = do
             return $ config {zlib = True}
         processOneOption config Variable = do
-            return $ config {variable = True}
+            return $ config {srType = VariableSR}
         processOneOption config IntData = do
             return $ config {intData = True}
         processOneOption config (Label s) = do
@@ -159,6 +159,7 @@ texWriteFile Config{..} (path:_) = do
     where
         rate' = fromInteger rate
         sW = setWatermark track wmLevel
+        variable = srType == VariableSR
 
 ------------------------------------------------------------
 
@@ -199,6 +200,7 @@ texWriteFile1d Config{..} (path:_) = do
     where
         rate' = fromInteger rate
         sW = setWatermark track wmLevel
+        variable = srType == VariableSR
 
 ------------------------------------------------------------
 -- The Application
