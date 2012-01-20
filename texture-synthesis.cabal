@@ -42,7 +42,7 @@ Library
     mwc-random,
     parallel,
     primitive,
-    zoom-cache                >= 1.0.0.0 && < 1.2.0.0
+    zoom-cache                >= 1.0.0.0 && < 1.3.0.0
   
   -- Modules not exported by this package.
   -- Other-modules:       
@@ -73,7 +73,7 @@ Executable texture-synthesis
     primitive,
     ui-command,
     time,
-    zoom-cache                >= 1.0.0.0 && < 1.1.0.0
+    zoom-cache                >= 1.0.0.0 && < 1.3.0.0
 
 Test-suite tests
   Type:              exitcode-stdio-1.0
